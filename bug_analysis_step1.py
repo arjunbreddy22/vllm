@@ -14,7 +14,7 @@ def analyze_bug():
     """Document the bug analysis findings"""
     
     print("="*80)
-    print("MIN_TOKENS BUG ANALYSIS - STEP 1: REPRODUCTION COMPLETE")
+    print("🚨 CRITICAL DISCOVERY: MIN_TOKENS BUG IS V1-SPECIFIC!")
     print("="*80)
     
     print("\n1. BUG CONFIRMED:")

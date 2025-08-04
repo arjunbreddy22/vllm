@@ -2,6 +2,8 @@
 """
 Simple reproduction script for min_tokens bug analysis.
 
+🚨 CRITICAL: This bug is V1-SPECIFIC! We need to test V1 engine, not V0.
+
 This script focuses on testing the SamplingParams logic and reproducing
 the issue described in the bug report without requiring full vLLM LLM infrastructure.
 """
@@ -10,6 +12,10 @@ import sys
 import os
 # Since we're now inside the vllm directory, add the parent directory to path
 sys.path.insert(0, os.path.dirname(__file__))
+
+# 🚨 ENABLE V1 ENGINE
+os.environ['VLLM_USE_V1'] = '1'
+print("🚨 V1 MODE ENABLED: VLLM_USE_V1=1")
 
 def test_sampling_params_creation():
     """Test that SamplingParams can be created with the bug scenario parameters"""
