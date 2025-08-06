@@ -293,4 +293,44 @@ python bug_analysis_step1.py
 
 ---
 
-*This document tracks our investigation progress and serves as a reference for the min_tokens bug fix.* 
+*This document tracks our investigation progress and serves as a reference for the min_tokens bug fix.*
+
+## Test Suite: `vllm/tests/v1/test_min_tokens.py`
+
+### Overview
+This file contains a comprehensive, end-to-end test suite for the `min_tokens` functionality within the vLLM V1 engine. It directly addresses issue #21950 ("Verify and add CI coverage for min_tokens") by providing robust and deterministic test cases for various scenarios.
+
+### Key Design Principles
+- **V1-Specific:** All tests are designed to run against the V1 engine, ensuring `VLLM_USE_V1=1` is set.
+- **Deterministic:** Utilizes `temperature=0.0` and carefully crafted prompts/stop lists to ensure predictable model behavior, making tests reliable and non-flaky.
+- **Comprehensive Coverage:** Addresses both identified root causes of the `min_tokens` bug:
+    - **Detokenizer Issue (Stop Strings):** Tests that `min_tokens` is respected even when a stop string is encountered prematurely.
+    - **LogitsProcessor Issue (EOS Tokens):** Tests that `min_tokens` is respected when the model naturally generates an End-of-Sentence (EOS) token.
+- **Parametrized Tests:** Uses `pytest.mark.parametrize` to efficiently run multiple scenarios with a single test function, improving readability and maintainability.
+- **Clear Expectations:** Tests are marked with `pytest.xfail` where a bug is known to exist, providing clear documentation of expected failures until fixes are merged.
+
+### Test Categories & Scenarios
+The test suite covers the following critical scenarios:
+
+1.  **Basic `min_tokens` Functionality:**
+    *   Ensures `min_tokens` is respected when no explicit stop conditions are present.
+    *   Tests edge cases like `min_tokens=0` and `min_tokens=max_tokens`.
+
+2.  **`min_tokens` with Stop Strings (Detokenizer Bug):**
+    *   Uses a "wide net" approach with common characters (e.g., "e", "a", " ") as stop strings to guarantee early termination by the buggy detokenizer.
+    *   Includes tests designed to fail if the `min_tokens` threshold is ignored when a stop string is hit.
+    *   Features a "guaranteed early trigger" test that is highly robust in exposing this specific bug.
+
+3.  **`min_tokens` with EOS Tokens (LogitsProcessor Bug):**
+    *   Tests scenarios where `min_tokens` and `max_tokens` are set to the same value, forcing the model to generate a specific number of tokens or hit an early EOS.
+    *   Designed to fail if the `MinTokensLogitsProcessor` incorrectly allows an EOS token to be generated before `min_tokens` is reached.
+
+4.  **Input Validation:**
+    *   Verifies that the `SamplingParams` class correctly raises `ValueError` for invalid `min_tokens` inputs (e.g., negative values, `min_tokens > max_tokens`).
+
+### Structure
+- **`MinTokensTestCase` Class:** A data class used to define and organize parameters for each test scenario, enhancing readability and reusability.
+- **`llm_v1` Fixture:** A `pytest` fixture that efficiently sets up a V1 `LLM` instance (using a small model like `facebook/opt-125m`) once per test module, ensuring a consistent and fast testing environment.
+- **Helper Functions:** `get_token_count` and `assert_min_tokens_satisfied` simplify test logic and improve readability by encapsulating common operations and assertions.
+
+This test suite provides a solid foundation for verifying the `min_tokens` bug fixes and ensuring long-term CI coverage. 
