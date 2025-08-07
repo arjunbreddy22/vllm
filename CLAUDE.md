@@ -73,7 +73,7 @@ The V1 engine has **two separate mechanisms** for stop conditions:
 # CRITICAL: Use D drive for builds (C drive insufficient space)
 # 1. Clone repository to D drive first:
 D:
-git clone https://github.com/arjunbreddy22/vllm.git vllm-fork
+git clone https://github.com/arjunbreddy22/vllm.git vllm-fork-min-tokens
 cd vllm-fork
 
 # 2. CPU build with extended timeout (45+ minutes)
