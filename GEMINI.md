@@ -117,7 +117,7 @@ if self.stop:
 
 #### **The LogitsProcessor Problem**:
 
-1. **MinTokensLogitsProcessor IS Enabled**: 
+1. **MinTokensLogitsProcessor IS Enabled**:
    - ✅ Called in `init_builtin_logitsprocs()` at line 218 in `gpu_input_batch.py`
    - ✅ Added to `non_argmax_invariant` processors 
    - ✅ Should be running automatically
@@ -185,7 +185,7 @@ This creates a **two-pronged bug** where BOTH mechanisms can bypass min_tokens!
 Prompt: "test/"
 min_tokens: 200
 max_tokens: 200  
-stop: ['\n']
+stop: ["\n"]
 Expected: Generate 200 tokens before stopping
 Actual: Generates "test\n" (2 tokens) and stops immediately
 ```
@@ -334,3 +334,22 @@ The test suite covers the following critical scenarios:
 - **Helper Functions:** `get_token_count` and `assert_min_tokens_satisfied` simplify test logic and improve readability by encapsulating common operations and assertions.
 
 This test suite provides a solid foundation for verifying the `min_tokens` bug fixes and ensuring long-term CI coverage. 
+
+## Dependency Installation Summary
+
+### Attempts to install dependencies:
+1.  **`pip install -e .`**: Failed due to platform-specific issues on Windows.
+Then i switched to Mac.
+2.  **`pip install -r requirements/test.txt`**: Failed because `bitsandbytes` and `cupy-cuda12x` are not available on macOS.
+3.  **`pip install -r requirements/test.in`**: Failed because `torch==2.7.1` is not available for the current Python version/platform.
+4.  **`pip install -r requirements/dev.txt`**: Failed because it also includes `bitsandbytes`.
+5.  **`pip install -r requirements/cpu.txt`**: Failed because `torch==2.6.0+cpu` is not available.
+6.  **`pip install -r requirements/common.txt`**: Failed because `xgrammar` requires `torch`.
+7.  **`pip install torch`**: Failed to find a compatible version.
+8.  **`pip install -r requirements/common.txt` with various packages ignored**: All attempts failed due to the `torch` dependency.
+9.  **`brew install cmake pkg-config`**: Successfully installed `cmake` and `pkg-config`.
+10. **`brew install sentencepiece`**: Successfully installed `sentencepiece`.
+
+### Current Status:
+- **Working**: `cmake`, `pkg-config`, and `sentencepiece` are installed via Homebrew.
+- **Not Working**: The installation of `torch` and other Python packages from the requirements files is still failing due to incompatible versions and dependencies. The primary blocker is the `torch` installation.
