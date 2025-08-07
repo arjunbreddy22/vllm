@@ -35,6 +35,6 @@ jobs:
 
       - name: Run V1 min_tokens tests
         run: |
-          docker run --rm -e VLLM_USE_V1=1 vllm-cpu-test bash -lc "pytest tests/v1/test_min_tokens.py -v --maxfail=1"
+          docker run --rm -e VLLM_USE_V1=1 vllm-cpu-test /bin/bash -lc "pytest tests/v1/test_min_tokens.py -v --maxfail=1"
 
 
