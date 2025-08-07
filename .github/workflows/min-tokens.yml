@@ -2,6 +2,14 @@ name: Min Tokens (V1) CPU Tests
 
 on:
   workflow_dispatch: {}
+  push:
+    branches:
+      - fix/test-min-tokens
+    paths:
+      - 'tests/v1/test_min_tokens.py'
+      - 'vllm/**'
+      - 'docker/Dockerfile.cpu.legacy'
+      - '.github/workflows/min-tokens.yml'
   pull_request:
     paths:
       - 'tests/v1/test_min_tokens.py'
