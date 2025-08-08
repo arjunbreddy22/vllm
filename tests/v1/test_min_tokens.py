@@ -92,7 +92,7 @@ MIN_TOKENS_TEST_CASES = [
         expected_exact_len=15
     ),
     
-    # === STOP STRINGS WITH MIN_TOKENS (Calvin's bug scenario) ===
+    # === STOP STRINGS WITH MIN_TOKENS ===
     # These tests expose the detokenizer bug where stop strings bypass min_tokens
     # Using mathematically guaranteed approach with wide stop nets
     pytest.param(
