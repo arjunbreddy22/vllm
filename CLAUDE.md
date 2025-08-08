@@ -171,6 +171,103 @@ python reproduce_min_tokens_bug.py  # Requires CUDA
 python bug_analysis_step1.py
 ```
 
+## 📋 CURRENT SESSION STATUS (Updated 2025-01-08)
+
+### 🚧 DOCKER BUILD ISSUES - SESSION PAUSED
+
+**ATTEMPTED PROGRESS**:
+- ✅ Confirmed on correct branch: `fix/test-min-tokens`  
+- ✅ Located test file: `tests/v1/test_min_tokens.py`
+- ✅ Reinstalled Docker Desktop on D drive
+- ❌ **BLOCKED**: Docker CPU build hanging and BuildKit compatibility issues
+
+### 🐛 BUILD PROBLEMS ENCOUNTERED
+
+**Problem #1: Build Hanging**
+- Docker build gets to step 15/17 and hangs indefinitely
+- No CPU/RAM/I-O activity after reaching step 15
+- Waited 20+ minutes with no progress
+- Build uses cached layers 1-14, suggests steps 15+ are the issue
+
+**Problem #2: BuildKit Incompatibility**  
+- `docker/Dockerfile.cpu` requires BuildKit (`--mount` cache features)
+- When run via Claude Code: BuildKit works (build reaches step 15/17)
+- When run via user's PowerShell: BuildKit missing/broken
+- User's Docker version: 28.3.2 (buildx not included until 28.3.3+)
+- Attempted fixes tried: `$env:DOCKER_BUILDKIT=1` (fails with "buildx component missing")
+
+**Problem #3: Inconsistent Docker Environment**
+- Claude Code environment: Can run BuildKit commands successfully  
+- User PowerShell environment: Legacy builder only, `--mount` unsupported
+- Same Docker Desktop installation, different behavior depending on how it's called
+
+### 📋 ATTEMPTED SOLUTIONS (ALL FAILED)
+
+1. **Enable BuildKit manually**: `$env:DOCKER_BUILDKIT=1` → "buildx component missing"
+2. **Use --progress=plain**: Requires BuildKit (not available in legacy builder) 
+3. **Install buildx manually**: User correctly rejected due to version confusion
+4. **Switch to PowerShell**: Same BuildKit compatibility issues
+5. **Use main Dockerfile**: Still requires BuildKit features
+
+### 🎯 NEXT SESSION GOALS
+
+**PRIORITY 1: Get Verbose Build Output**
+- Need to see EXACTLY where step 15/17 hangs (what subprocess/command)
+- Current blocker: Can't get detailed logs due to BuildKit incompatibility
+- **Options to try next time**:
+  - Use Docker Desktop GUI build logs (if available)
+  - Try different Dockerfile that doesn't require BuildKit
+  - Fix buildx installation properly with verified URLs/versions
+  - Use WSL environment if available (full Linux Docker tools)
+
+**PRIORITY 2: Alternative Approaches**
+- Consider CPU-only pip installation without Docker (if dependency conflicts allow)
+- Try pre-built vLLM wheels or conda packages 
+- Use GitHub Codespaces or other cloud environment for testing
+
+**PRIORITY 3: After Build Works**
+- Run tests: `export VLLM_USE_V1=1 && pytest tests/v1/test_min_tokens.py -v`
+- Verify min_tokens bug behavior
+- Document exact test failures/results
+
+### 📝 LESSONS LEARNED
+
+1. **Docker environment inconsistency**: Same Docker installation behaves differently when called from different contexts
+2. **BuildKit dependency**: vLLM's CPU Dockerfile requires modern Docker features not available in legacy builder
+3. **Need verbose debugging**: Without detailed build logs, impossible to debug hanging builds
+4. **Version confusion**: Docker Desktop auto-updater shows "up to date" when newer versions exist
+
+### 🔧 WORKING COMMANDS (For Reference)
+
+**Commands that work via Claude Code but not PowerShell:**
+```bash
+docker build -f docker/Dockerfile.cpu -t vllm-cpu-fork --build-arg VLLM_TARGET_DEVICE=cpu .
+```
+
+**Commands attempted in PowerShell (all failed):**
+```powershell
+# Legacy builder (no BuildKit support)
+docker build -f docker/Dockerfile.cpu -t vllm-cpu-fork --build-arg VLLM_TARGET_DEVICE=cpu . | Tee-Object build_plain.log
+
+# Enable BuildKit (buildx missing)  
+$env:DOCKER_BUILDKIT=1; docker build -f docker/Dockerfile.cpu -t vllm-cpu-fork --build-arg VLLM_TARGET_DEVICE=cpu . | Tee-Object build_plain.log
+```
+
+**WHY WE'RE BUILDING DOCKER**: 
+- Need Docker CPU environment to install all vLLM dependencies
+- Allows running `tests/v1/test_min_tokens.py` which tests the min_tokens bug
+- We are NOT implementing fixes - only running existing tests to verify bug behavior
+
+**TARGET AFTER BUILD COMPLETES**:
+```bash
+# Test the container
+docker run -it vllm-cpu-fork /bin/bash
+
+# Inside container, run the tests:
+export VLLM_USE_V1=1
+pytest tests/v1/test_min_tokens.py -v
+```
+
 #### General Building  
 ```bash
 # Build with CMake (used by setup.py)
