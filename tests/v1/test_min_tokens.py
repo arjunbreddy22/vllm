@@ -388,7 +388,7 @@ def test_min_tokens_eos_behavior(llm_v1: LLM):
     tokenizer = llm_v1.get_tokenizer()
     eos_token_id = tokenizer.eos_token_id
 
-    prompt = "Answer with just 'Yes'."
+    prompt = "Q: 2+2? A:"
     max_toks = 64
 
     # Case 1: WITHOUT min_tokens
