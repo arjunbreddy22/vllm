@@ -388,8 +388,8 @@ def test_min_tokens_eos_behavior(llm_v1: LLM):
     tokenizer = llm_v1.get_tokenizer()
     eos_token_id = tokenizer.eos_token_id
 
-    prompt = "Output 'Done' and nothing else."
-    max_toks = 128
+    prompt = "Give a file extension."
+    max_toks = 32
 
     # Case 1: WITHOUT min_tokens
     sp_no_min = SamplingParams(
