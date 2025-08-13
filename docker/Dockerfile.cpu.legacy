@@ -1,0 +1,75 @@
+# Legacy-compatible CPU Dockerfile without BuildKit features
+#
+# Use this when `docker buildx` / BuildKit isn't available on your system.
+# It mirrors the intent of docker/Dockerfile.cpu but avoids `RUN --mount=...`
+# and other BuildKit-only syntax.
+#
+# Build targets:
+#   - vllm-build: builds a CPU wheel
+#   - vllm-test: installs the wheel and test deps, ready to run pytest
+#
+# Example usage:
+#   docker build -f docker/Dockerfile.cpu.legacy --target vllm-test -t vllm-cpu-test .
+#   docker run --rm -e VLLM_USE_V1=1 vllm-cpu-test bash -lc "pytest tests/v1/test_min_tokens.py -v"
+
+######################### BASE IMAGE #########################
+FROM ubuntu:22.04 AS base
+
+ENV DEBIAN_FRONTEND=noninteractive
+WORKDIR /workspace/
+
+# Install system deps
+RUN apt-get update -y \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates curl wget git jq lsof \
+        build-essential cmake \
+        gcc-12 g++-12 \
+        libtcmalloc-minimal4 libnuma-dev \
+        ffmpeg libsm6 libxext6 libgl1 \
+        xz-utils pkg-config \
+    && update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 10 --slave /usr/bin/g++ g++ /usr/bin/g++-12 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv and a Python 3.12 virtualenv (avoids PPA complexity)
+ENV PATH="/root/.local/bin:$PATH"
+ENV VIRTUAL_ENV="/opt/venv"
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && uv venv --python 3.12 --seed ${VIRTUAL_ENV}
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+# Prefer PyTorch CPU wheels
+ENV PIP_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cpu"
+
+######################### BUILD WHEEL #########################
+FROM base AS vllm-build
+WORKDIR /workspace/vllm
+
+# Copy only files needed for dependency installation first (improves caching)
+COPY requirements/ ./requirements/
+
+# Upgrade pip and install build/runtime deps for CPU
+RUN python -m pip install --upgrade pip \
+    && python -m pip install -r requirements/cpu-build.txt \
+    && python -m pip install -r requirements/cpu.txt
+
+# Copy the full repo and build the wheel
+COPY . .
+RUN VLLM_TARGET_DEVICE=cpu python setup.py bdist_wheel
+
+######################### TEST IMAGE #########################
+FROM base AS vllm-test
+WORKDIR /workspace/
+
+# Install vLLM wheel from builder
+COPY --from=vllm-build /workspace/vllm/dist /dist
+RUN python -m pip install --upgrade pip \
+    && python -m pip install /dist/*.whl \
+    && python -m pip install pytest
+
+# Copy tests and minimal assets used by tests
+COPY ./tests/ ./tests/
+COPY ./examples/ ./examples/
+COPY ./benchmarks/ ./benchmarks/
+
+CMD ["bash"]
