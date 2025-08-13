@@ -156,10 +156,10 @@ def main(args):
     for scenario_name, request_sizes in scenarios:
         # Skip scenarios where tokens exceed max_model_len
         if max(request_sizes) > args.max_model_len:
-            print(f"⏭️  Skipping {scenario_name} (exceeds max_model_len={args.max_model_len})")
+            print(f"Skipping {scenario_name} (exceeds max_model_len={args.max_model_len})")
             continue
             
-        print(f"🧪 Testing {scenario_name}...")
+        print(f"Testing {scenario_name}...")
         
         batch_size = max(len(request_sizes), 8)  # Ensure we have enough requests
         swap_times, memory_info = benchmark_swap_performance(
@@ -175,18 +175,18 @@ def main(args):
         min_time = np.min(swap_times)
         max_time = np.max(swap_times)
         
-        print(f"   🕒 Timing:")
+        print(f"   Timing:")
         print(f"      Average: {avg_time:.1f} ± {std_time:.1f} μs")
         print(f"      Range: {min_time:.1f} - {max_time:.1f} μs")
         print()
-        print(f"   📊 Memory Analysis:")
+        print(f"   Memory Analysis:")
         print(f"      Request sizes: {memory_info['tokens_i1']} and {memory_info['tokens_i2']} tokens")
         print(f"      Max tokens to copy: {memory_info['max_tokens_swapped']} tokens")
         # Clarify that the baseline is the full-row copy and current is the slice copy
         print(f"      Baseline (full-row copy): {memory_info['current_bytes_per_swap']:,} bytes per swap")
         print(f"      Current (slice copy): {memory_info['optimized_bytes_per_swap']:,} bytes per swap")
-        print(f"      🚀 Theoretical bandwidth reduction: {memory_info['memory_efficiency_gain']:.1f}x")
-        print(f"      💾 Bytes avoided per swap: {memory_info['current_bytes_per_swap'] - memory_info['optimized_bytes_per_swap']:,}")
+        print(f"      Theoretical bandwidth reduction: {memory_info['memory_efficiency_gain']:.1f}x")
+        print(f"      Bytes avoided per swap: {memory_info['current_bytes_per_swap'] - memory_info['optimized_bytes_per_swap']:,}")
         
         # Calculate effective bandwidth and predicted performance for the other mode
         dtype_bytes = 4  # int32
@@ -209,10 +209,10 @@ def main(args):
         pred_other_time_us = (other_mode_bytes / this_mode_bytes) * avg_time
 
         print()
-        print(f"   📈 Performance Analysis:")
+        print(f"   Performance Analysis:")
         print(f"      Effective bandwidth ({this_label}): {bw_gbps:.2f} GB/s")
         print(f"      Predicted {other_label} time: {pred_other_time_us:.1f} μs")
-        print(f"      🎯 Implied improvement factor ({other_label}/{this_label}): {pred_other_time_us / avg_time:.1f}x")
+        print(f"      Implied improvement factor ({other_label}/{this_label}): {pred_other_time_us / avg_time:.1f}x")
         print()
         
         results.append({
@@ -229,22 +229,18 @@ def main(args):
         return
     total_bytes_saved = sum(result['bytes_saved'] for result in results)
     for result in results:
-        print(f"📋 {result['scenario']}:")
+        print(f"Scenario: {result['scenario']}")
         print(f"   Timing: {result['avg_time']:.1f} μs average")
         print(f"   Memory: {result['memory_efficiency_gain']:.1f}x bandwidth reduction")
         print(f"   Savings: {result['bytes_saved']:,} bytes per swap")
         print()
 
-    print("🎯 Overall Optimization Impact:")
+    print("Overall Optimization Impact:")
     gains = [r['memory_efficiency_gain'] for r in results]
     saves = [r['bytes_saved'] for r in results]
     print(f"   Memory bandwidth reductions: {min(gains):.1f}x to {max(gains):.1f}x")
     print(f"   Bytes saved per swap: {min(saves):,} to {max(saves):,}")
     print()
-    print("💡 The optimization opportunity:")
-    print("   ❌ Baseline: Copies entire tensor rows regardless of actual token count")
-    print("   ✅ Current: Copy only valid tokens (slice copy)")
-    print("   📈 Result: Dramatic reduction in memory bandwidth usage")
 
 
 if __name__ == "__main__":
