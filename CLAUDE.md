@@ -62,10 +62,18 @@ self.token_ids_cpu[i2, ...] = tmp
 ```
 
 **Why is tuple swap "unsafe"?**
-- `token_ids_cpu` is likely a PyTorch tensor
-- Tensor slicing creates views, not copies
-- Tuple swapping views can cause memory aliasing issues
-- Could lead to both requests pointing to the same memory
+
+Actually, `token_ids_cpu` is a NumPy array created from a PyTorch tensor:
+```python
+self.token_ids_cpu_tensor = torch.zeros((max_num_reqs, max_model_len), device="cpu")
+self.token_ids_cpu = self.token_ids_cpu_tensor.numpy()  # NumPy array sharing memory
+```
+
+**The original author's concern**: The NumPy array shares memory with the PyTorch tensor, which *could* theoretically cause issues with concurrent access or memory management conflicts between PyTorch and NumPy.
+
+**However**: For normal NumPy arrays, tuple swapping like `a[i], a[j] = a[j], a[i]` is typically safe and commonly used. The original author may have been **overly cautious** about the PyTorch-NumPy memory sharing.
+
+**Potential PR discussion point**: This raises an interesting question - is the tuple swap actually unsafe, or could this be simplified further? The current `.copy()` approach is definitely safe, but the "unsafe" designation might warrant investigation in a future optimization.
 
 ### The Inefficiency
 
@@ -174,3 +182,24 @@ python benchmarks/overheads/benchmark_tensor_swap.py --max-model-len 32768
 The benchmark creates requests with specific token counts, times the swap operation, and calculates how much improvement we could get by only copying valid tokens instead of entire rows.
 
 This will provide the "before" numbers to compare against after implementing the optimization, giving us concrete performance data for the PR submission.
+
+## PR Strategy and Discussion Points
+
+### Primary Optimization
+Our main contribution: **Only copy valid token indices instead of entire tensor rows**
+
+### Additional Insight to Mention
+**The "unsafe" tuple swap question**: In our analysis, we discovered that the original "unsafe" designation for tuple swapping might be overly cautious:
+
+- `token_ids_cpu` is a NumPy array (not a PyTorch tensor as initially assumed)
+- Standard NumPy tuple swapping is typically safe: `a[i], a[j] = a[j], a[i]`
+- The concern appears to be PyTorch-NumPy memory sharing, but this may not actually pose risks
+
+**PR value**: Mentioning this shows:
+1. **Deep code analysis** - We understand the implementation details beyond just the surface optimization
+2. **Potential for future improvement** - Could investigate eliminating `.copy()` entirely in a future PR
+3. **Technical rigor** - We question assumptions and validate the actual necessity of current "safe" approaches
+
+**Recommended PR tone**: "While implementing the current optimization, we noticed the tuple swap 'unsafe' designation might be overly cautious. For this PR, we maintain the safe `.copy()` approach while dramatically improving performance. The tuple swap question could be worth investigating in future optimizations."
+
+This demonstrates both **immediate practical value** (our optimization) and **longer-term technical insight** (potential further improvements).

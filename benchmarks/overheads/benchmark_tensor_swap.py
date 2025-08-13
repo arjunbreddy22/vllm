@@ -78,31 +78,54 @@ def benchmark_swap_performance(
     )
     
     # Add requests with specified sizes
+    actual_request_sizes = []
     for req_index in range(batch_size):
         num_tokens = request_sizes[req_index % len(request_sizes)]
         req = _construct_request_with_tokens(req_index, num_tokens, vocab_size)
         assigned_req_index = input_batch.add_request(req)
         assert assigned_req_index == req_index
+        actual_request_sizes.append(num_tokens)
     
-    # Warm up
-    for _ in range(10):
-        input_batch.swap_states(0, 1)
+    # Calculate memory usage
+    i1, i2 = 0, 1  # We'll swap these two requests
+    tokens_i1 = actual_request_sizes[i1] 
+    tokens_i2 = actual_request_sizes[i2]
+    max_tokens_swapped = max(tokens_i1, tokens_i2)
     
-    # Benchmark swap operations
+    # Memory calculations (4 bytes per token for int32)
+    current_bytes_per_swap = max_model_len * 4 * 3  # 3 copy operations (tmp + 2 assignments)  
+    optimized_bytes_per_swap = max_tokens_swapped * 4 * 3
+    memory_efficiency_gain = current_bytes_per_swap / optimized_bytes_per_swap if optimized_bytes_per_swap > 0 else 1
+    
+    # Extended warm up to reduce noise
+    for _ in range(50):  # More warmup
+        input_batch.swap_states(i1, i2)
+        input_batch.swap_states(i1, i2)  # Swap back
+    
+    # Benchmark swap operations with more rigorous timing
     swap_times = []
-    for _ in range(num_trials):
-        i1, i2 = 0, 1  # Always swap first two requests
+    for trial in range(num_trials):
+        # Measure both directions to account for any asymmetry
+        times_this_trial = []
         
-        start_time = time.perf_counter()
-        input_batch.swap_states(i1, i2)
-        end_time = time.perf_counter()
+        for direction in range(2):  # Forward and back
+            start_time = time.perf_counter()
+            input_batch.swap_states(i1, i2)
+            end_time = time.perf_counter()
+            times_this_trial.append((end_time - start_time) * 1_000_000)
         
-        swap_times.append((end_time - start_time) * 1_000_000)  # Convert to microseconds
-        
-        # Swap back to restore original state
-        input_batch.swap_states(i1, i2)
+        # Use the average of both directions for this trial
+        swap_times.append(np.mean(times_this_trial))
     
-    return swap_times
+    return swap_times, {
+        'tokens_i1': tokens_i1,
+        'tokens_i2': tokens_i2,
+        'max_tokens_swapped': max_tokens_swapped,
+        'current_bytes_per_swap': current_bytes_per_swap,
+        'optimized_bytes_per_swap': optimized_bytes_per_swap,
+        'memory_efficiency_gain': memory_efficiency_gain,
+        'max_model_len': max_model_len
+    }
 
 
 def main(args):
@@ -139,7 +162,7 @@ def main(args):
         print(f"🧪 Testing {scenario_name}...")
         
         batch_size = max(len(request_sizes), 8)  # Ensure we have enough requests
-        swap_times = benchmark_swap_performance(
+        swap_times, memory_info = benchmark_swap_performance(
             device=args.device,
             batch_size=batch_size,
             max_model_len=args.max_model_len,
@@ -152,32 +175,44 @@ def main(args):
         min_time = np.min(swap_times)
         max_time = np.max(swap_times)
         
-        # Calculate data copied (rough estimate)
-        max_tokens_copied = max(request_sizes) * 2  # Copy + assign operations
-        total_possible = args.max_model_len * 2  # What current implementation copies
-        efficiency_gain = total_possible / max_tokens_copied if max_tokens_copied > 0 else 1
-        
-        print(f"   Average: {avg_time:.1f} ± {std_time:.1f} μs")
-        print(f"   Range: {min_time:.1f} - {max_time:.1f} μs")
-        print(f"   Potential efficiency gain: {efficiency_gain:.1f}x")
+        print(f"   🕒 Timing:")
+        print(f"      Average: {avg_time:.1f} ± {std_time:.1f} μs")
+        print(f"      Range: {min_time:.1f} - {max_time:.1f} μs")
+        print()
+        print(f"   📊 Memory Analysis:")
+        print(f"      Request sizes: {memory_info['tokens_i1']} and {memory_info['tokens_i2']} tokens")
+        print(f"      Max tokens to copy: {memory_info['max_tokens_swapped']} tokens")
+        print(f"      Current implementation: {memory_info['current_bytes_per_swap']:,} bytes per swap")
+        print(f"      Optimized implementation: {memory_info['optimized_bytes_per_swap']:,} bytes per swap")
+        print(f"      🚀 Memory bandwidth reduction: {memory_info['memory_efficiency_gain']:.1f}x")
+        print(f"      💾 Memory saved per swap: {memory_info['current_bytes_per_swap'] - memory_info['optimized_bytes_per_swap']:,} bytes")
         print()
         
         results.append({
             'scenario': scenario_name,
             'avg_time': avg_time,
             'request_sizes': request_sizes,
-            'efficiency_gain': efficiency_gain
+            'memory_efficiency_gain': memory_info['memory_efficiency_gain'],
+            'bytes_saved': memory_info['current_bytes_per_swap'] - memory_info['optimized_bytes_per_swap']
         })
     
     print("=== Summary ===")
+    total_bytes_saved = sum(result['bytes_saved'] for result in results)
     for result in results:
-        print(f"{result['scenario']}: {result['avg_time']:.1f} μs "
-              f"(potential {result['efficiency_gain']:.1f}x speedup)")
+        print(f"📋 {result['scenario']}:")
+        print(f"   Timing: {result['avg_time']:.1f} μs average")
+        print(f"   Memory: {result['memory_efficiency_gain']:.1f}x bandwidth reduction")
+        print(f"   Savings: {result['bytes_saved']:,} bytes per swap")
+        print()
     
-    print("\n💡 The optimization opportunity:")
-    print("   Current implementation copies entire tensor rows (max_model_len)")
-    print("   Optimized implementation would copy only valid tokens")
-    print("   Expected improvement: 10-50x reduction in memory bandwidth")
+    print("🎯 Overall Optimization Impact:")
+    print(f"   Memory bandwidth reductions: {min([r['memory_efficiency_gain'] for r in results]):.1f}x to {max([r['memory_efficiency_gain'] for r in results]):.1f}x")
+    print(f"   Bytes saved per swap: {min([r['bytes_saved'] for r in results]):,} to {max([r['bytes_saved'] for r in results]):,}")
+    print()
+    print("💡 The optimization opportunity:")
+    print("   ❌ Current: Copies entire tensor rows regardless of actual token count")
+    print("   ✅ Optimized: Copy only valid tokens (our optimization)")
+    print("   📈 Result: Dramatic reduction in memory bandwidth usage")
 
 
 if __name__ == "__main__":

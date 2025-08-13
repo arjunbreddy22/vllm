@@ -24,9 +24,12 @@ jobs:
       - name: Build legacy CPU test image
         run: |
           docker build -f docker/Dockerfile.cpu.legacy --target vllm-test -t vllm-cpu-test . | cat
-      - name: Run tensor swap benchmark
+      - name: Run tensor swap benchmark (8K context)
         run: |
-          docker run --rm -e VLLM_USE_V1=1 vllm-cpu-test bash -lc "python benchmarks/overheads/benchmark_tensor_swap.py --max-model-len 8192 --num-trials 50"
-      - name: Run tensor swap benchmark (large context)
+          docker run --rm -e VLLM_USE_V1=1 vllm-cpu-test bash -lc "python benchmarks/overheads/benchmark_tensor_swap.py --max-model-len 8192 --num-trials 30"
+      - name: Run tensor swap benchmark (32K context) 
         run: |
-          docker run --rm -e VLLM_USE_V1=1 vllm-cpu-test bash -lc "python benchmarks/overheads/benchmark_tensor_swap.py --max-model-len 32768 --num-trials 25"
+          docker run --rm -e VLLM_USE_V1=1 vllm-cpu-test bash -lc "python benchmarks/overheads/benchmark_tensor_swap.py --max-model-len 32768 --num-trials 20"
+      - name: Run tensor swap benchmark (large context scenarios)
+        run: |
+          docker run --rm -e VLLM_USE_V1=1 vllm-cpu-test bash -lc "python benchmarks/overheads/benchmark_tensor_swap.py --max-model-len 65536 --num-trials 15"
