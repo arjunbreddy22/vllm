@@ -474,6 +474,7 @@ class InputBatch:
         #     self.token_ids_cpu[i2, ...], self.token_ids_cpu[i1, ...]
         # instead, we need to temporiarily copy the data for one of the indices
         # Optimization: only copy valid indices instead of entire tensor rows
+        '''
         num_tokens_i1 = self.num_tokens[i1]
         num_tokens_i2 = self.num_tokens[i2]
         max_tokens = max(num_tokens_i1, num_tokens_i2)
@@ -481,6 +482,11 @@ class InputBatch:
         tmp = self.token_ids_cpu[i1, :max_tokens].copy()
         self.token_ids_cpu[i1, :max_tokens] = self.token_ids_cpu[i2, :max_tokens]
         self.token_ids_cpu[i2, :max_tokens] = tmp
+        '''
+        #test with inefficient version
+        tmp = self.token_ids_cpu[i1, ...].copy()  # ← COPIES ENTIRE ROW
+        self.token_ids_cpu[i1, ...] = self.token_ids_cpu[i2, ...]
+        self.token_ids_cpu[i2, ...] = tmp
 
         swap_dict_values(self.generators, i1, i2)
         swap_dict_values(self.bad_words_token_ids, i1, i2)
