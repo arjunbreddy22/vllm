@@ -45,6 +45,10 @@ ENV PIP_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cpu"
 FROM base AS vllm-build
 WORKDIR /workspace/vllm
 
+# Optional: build-time toggle to generate a baseline image with full-row swap
+# 0 = optimized (default), 1 = baseline (full-row copy in swap_states)
+ARG VLLM_BASELINE_SWAP=0
+
 # Copy only files needed for dependency installation first (improves caching)
 COPY requirements/ ./requirements/
 
@@ -55,6 +59,38 @@ RUN python -m pip install --upgrade pip \
 
 # Copy the full repo and build the wheel
 COPY . .
+
+# If requested, rewrite swap_states to baseline full-row copy before building
+RUN if [ "$VLLM_BASELINE_SWAP" = "1" ]; then \
+      python - <<'PY' ; \
+import io, sys
+p = 'vllm/v1/worker/gpu_input_batch.py'
+s = open(p, 'r', encoding='utf-8').read().splitlines()
+out = []
+i = 0
+while i < len(s):
+    line = s[i]
+    if 'Optimization: only copy valid indices' in line:
+        out.append(line)
+        i += 1
+        # Skip blank lines
+        while i < len(s) and s[i].strip() == '':
+            out.append(s[i]); i += 1
+        # Drop lines that compute num_tokens_i1/num_tokens_i2/max_tokens
+        while i < len(s) and (('num_tokens_i1' in s[i]) or ('num_tokens_i2' in s[i]) or ('max_tokens' in s[i])):
+            i += 1
+        # Replace the next three slice ops to use full row (:self.max_model_len)
+        for _ in range(3):
+            if i < len(s):
+                out.append(s[i].replace(':max_tokens', ':self.max_model_len'))
+                i += 1
+        continue
+    out.append(line)
+    i += 1
+open(p, 'w', encoding='utf-8').write('\n'.join(out))
+PY
+    fi
+
 RUN VLLM_TARGET_DEVICE=cpu python setup.py bdist_wheel
 
 ######################### TEST IMAGE #########################

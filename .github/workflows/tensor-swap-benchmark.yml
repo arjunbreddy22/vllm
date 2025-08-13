@@ -21,18 +21,30 @@ jobs:
       - name: Show Docker version
         run: |
           docker version
-      - name: Build legacy CPU test image
+      - name: Build optimized CPU test image
         run: |
-          docker build -f docker/Dockerfile.cpu.legacy --target vllm-test -t vllm-cpu-test . | cat
-      - name: Run correctness tests for swap_states optimization
+          docker build -f docker/Dockerfile.cpu.legacy --target vllm-test -t vllm-cpu-test:optimized . | cat
+      - name: Build baseline CPU test image (full-row copy)
         run: |
-          docker run --rm -e VLLM_USE_V1=1 vllm-cpu-test bash -lc "pytest tests/v1/worker/test_gpu_input_batch.py::test_swap_states_in_input_batch -v --tb=short"
-      - name: Run tensor swap benchmark (8K context)
+          docker build -f docker/Dockerfile.cpu.legacy --build-arg VLLM_BASELINE_SWAP=1 --target vllm-test -t vllm-cpu-test:baseline . | cat
+      - name: Run correctness tests (optimized)
         run: |
-          docker run --rm -e VLLM_USE_V1=1 vllm-cpu-test bash -lc "python benchmarks/overheads/benchmark_tensor_swap.py --max-model-len 8192 --num-trials 30"
-      - name: Run tensor swap benchmark (32K context) 
+          docker run --rm -e VLLM_USE_V1=1 vllm-cpu-test:optimized bash -lc "pytest tests/v1/worker/test_gpu_input_batch.py::test_swap_states_in_input_batch -v --tb=short"
+      - name: Run tensor swap benchmark (optimized, 8K)
         run: |
-          docker run --rm -e VLLM_USE_V1=1 vllm-cpu-test bash -lc "python benchmarks/overheads/benchmark_tensor_swap.py --max-model-len 32768 --num-trials 20"
-      - name: Run tensor swap benchmark (large context scenarios)
+          docker run --rm -e VLLM_USE_V1=1 vllm-cpu-test:optimized bash -lc "python benchmarks/overheads/benchmark_tensor_swap.py --max-model-len 8192 --num-trials 30"
+      - name: Run tensor swap benchmark (optimized, 32K) 
         run: |
-          docker run --rm -e VLLM_USE_V1=1 vllm-cpu-test bash -lc "python benchmarks/overheads/benchmark_tensor_swap.py --max-model-len 65536 --num-trials 15"
+          docker run --rm -e VLLM_USE_V1=1 vllm-cpu-test:optimized bash -lc "python benchmarks/overheads/benchmark_tensor_swap.py --max-model-len 32768 --num-trials 20"
+      - name: Run tensor swap benchmark (optimized, 65K)
+        run: |
+          docker run --rm -e VLLM_USE_V1=1 vllm-cpu-test:optimized bash -lc "python benchmarks/overheads/benchmark_tensor_swap.py --max-model-len 65536 --num-trials 15"
+      - name: Run tensor swap benchmark (baseline, 8K)
+        run: |
+          docker run --rm -e VLLM_USE_V1=1 vllm-cpu-test:baseline bash -lc "python benchmarks/overheads/benchmark_tensor_swap.py --max-model-len 8192 --num-trials 30"
+      - name: Run tensor swap benchmark (baseline, 32K)
+        run: |
+          docker run --rm -e VLLM_USE_V1=1 vllm-cpu-test:baseline bash -lc "python benchmarks/overheads/benchmark_tensor_swap.py --max-model-len 32768 --num-trials 20"
+      - name: Run tensor swap benchmark (baseline, 65K)
+        run: |
+          docker run --rm -e VLLM_USE_V1=1 vllm-cpu-test:baseline bash -lc "python benchmarks/overheads/benchmark_tensor_swap.py --max-model-len 65536 --num-trials 15"

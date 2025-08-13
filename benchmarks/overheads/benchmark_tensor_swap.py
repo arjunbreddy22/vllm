@@ -188,19 +188,31 @@ def main(args):
         print(f"      🚀 Theoretical bandwidth reduction: {memory_info['memory_efficiency_gain']:.1f}x")
         print(f"      💾 Bytes avoided per swap: {memory_info['current_bytes_per_swap'] - memory_info['optimized_bytes_per_swap']:,}")
         
-        # Calculate effective bandwidth and predicted old performance
+        # Calculate effective bandwidth and predicted performance for the other mode
         dtype_bytes = 4  # int32
         bytes_after = 3 * memory_info['max_tokens_swapped'] * dtype_bytes
         bytes_before = 3 * memory_info['max_model_len'] * dtype_bytes
-        
-        bw_after_gbps = (bytes_after / (avg_time * 1e-6)) / 1e9  # Convert μs to seconds, bytes to GB
-        pred_time_before_us = (bytes_before / bytes_after) * avg_time  # What old implementation would take
-        
+
+        # Label-aware bandwidth and prediction (for clearer A/B reporting)
+        if getattr(args, 'mode', 'optimized') == 'baseline':
+            this_label = 'baseline'
+            other_label = 'optimized'
+            this_mode_bytes = bytes_before
+            other_mode_bytes = bytes_after
+        else:
+            this_label = 'optimized'
+            other_label = 'baseline'
+            this_mode_bytes = bytes_after
+            other_mode_bytes = bytes_before
+
+        bw_gbps = (this_mode_bytes / (avg_time * 1e-6)) / 1e9  # Convert μs to seconds, bytes to GB
+        pred_other_time_us = (other_mode_bytes / this_mode_bytes) * avg_time
+
         print()
         print(f"   📈 Performance Analysis:")
-        print(f"      Effective bandwidth (optimized): {bw_after_gbps:.2f} GB/s")
-        print(f"      Predicted old implementation time: {pred_time_before_us:.1f} μs")
-        print(f"      🎯 Measured improvement factor: {pred_time_before_us / avg_time:.1f}x")
+        print(f"      Effective bandwidth ({this_label}): {bw_gbps:.2f} GB/s")
+        print(f"      Predicted {other_label} time: {pred_other_time_us:.1f} μs")
+        print(f"      🎯 Implied improvement factor ({other_label}/{this_label}): {pred_other_time_us / avg_time:.1f}x")
         print()
         
         results.append({
@@ -238,6 +250,14 @@ def main(args):
 if __name__ == "__main__":
     parser = FlexibleArgumentParser(
         description="Benchmark tensor swap performance in GPU input batch"
+    )
+    # Optional: label the current run mode for clearer printing
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default="optimized",
+        choices=["optimized", "baseline"],
+        help="Label for the current run. Use 'baseline' when running full-row copy build."
     )
     parser.add_argument(
         "--device", 
