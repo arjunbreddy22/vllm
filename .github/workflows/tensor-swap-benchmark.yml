@@ -2,15 +2,11 @@ name: Tensor Swap Optimization Test & Benchmark (V1) CPU
 on:
   workflow_dispatch: {}
   pull_request:
-    paths:
-      - 'benchmarks/overheads/benchmark_tensor_swap.py'
-      - 'vllm/v1/worker/gpu_input_batch.py'
-      - 'docker/Dockerfile.cpu.legacy'
-      - '.github/workflows/tensor-swap-benchmark.yml'
+    branches:
+      - '**'
   push:
-    paths:
-      - 'benchmarks/overheads/benchmark_tensor_swap.py'
-      - 'vllm/v1/worker/gpu_input_batch.py'
+    branches:
+      - optimize-tensor-swap-performance
 jobs:
   cpu-benchmark:
     runs-on: ubuntu-latest
