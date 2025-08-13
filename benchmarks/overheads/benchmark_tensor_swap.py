@@ -11,6 +11,14 @@ from vllm.utils import FlexibleArgumentParser, is_pin_memory_available
 from vllm.v1.worker.gpu_input_batch import CachedRequestState, InputBatch
 
 
+def get_best_device():
+    """Auto-detect the best available device for benchmarking."""
+    if torch.cuda.is_available():
+        return "cuda:0"
+    else:
+        return "cpu"
+
+
 def _create_sampling_params():
     return SamplingParams(
         temperature=1.0,
@@ -100,6 +108,14 @@ def benchmark_swap_performance(
 def main(args):
     print("=== vLLM Tensor Swap Performance Benchmark ===")
     print(f"Device: {args.device}")
+    
+    # Show device detection info
+    if torch.cuda.is_available():
+        print(f"CUDA available: Using {args.device}")
+    else:
+        print(f"CUDA not available: Using CPU device")
+        print("Note: CPU benchmarking is valid since tensor swapping happens in CPU memory")
+    
     print(f"Max model length: {args.max_model_len}")
     print(f"Trials per scenario: {args.num_trials}")
     print()
@@ -171,8 +187,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--device", 
         type=str, 
-        default="cuda:0", 
-        help="Device to run benchmark on"
+        default=get_best_device(), 
+        help="Device to run benchmark on (auto-detects cuda:0 or cpu)"
     )
     parser.add_argument(
         "--max-model-len", 
